@@ -1,0 +1,15 @@
+[package]
+name = "progress_downloader"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+backoff = {version="0.4.0", features = ["tokio", "futures"]}
+futures-util = "0.3.31"
+indicatif = "0.17.11"
+pin-project = "1.1.10"
+tokio = { version = "1.44.1", features = ["io-util","fs","macros","rt-multi-thread"] }
+typed-builder = "0.21.0"
+bytes = "1.10.1"
+reqwest = { version = "0.12.15", features = ["stream"] }
+anyhow = "1.0.97"
