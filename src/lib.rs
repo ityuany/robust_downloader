@@ -3,17 +3,11 @@ use std::{env, sync::Arc, time::Duration};
 use backoff::ExponentialBackoff;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressDrawTarget};
-use progress_bar_stream::ProgressBarStream;
+use state::DownloadState;
 use tokio::io::AsyncWriteExt;
 use typed_builder::TypedBuilder;
 
-mod progress_bar_stream;
-
-pub trait Progress {
-    fn create_progress(&self, url: &str, total_size: u64) -> ProgressBar;
-
-    fn set_progress(&self, url: &str, downloaded_size: u64, remaining_size: u64);
-}
+mod state;
 
 #[derive(Debug, TypedBuilder, Clone)]
 pub struct DownloadProgress {
@@ -29,11 +23,10 @@ pub struct DownloadProgress {
           .expect("Failed to create HTTP client")
   ))]
     client: Arc<reqwest::Client>,
-    // progress: Box<dyn Progress>,
 }
 
 impl DownloadProgress {
-    fn build_backoff(&self) -> ExponentialBackoff {
+    fn backoff(&self) -> ExponentialBackoff {
         ExponentialBackoff {
             // 初始等待 0.5 秒,加快重试速度
             initial_interval: Duration::from_millis(500),
@@ -49,149 +42,95 @@ impl DownloadProgress {
         }
     }
 
-    fn is_retry_error(&self, e: &reqwest::Error) -> bool {
-        e.is_timeout() || e.is_connect() || e.is_request() || e.is_decode()
-    }
+    pub async fn download(&self, downloads: Vec<(&str, &str)>) -> anyhow::Result<()> {
+        let futures = downloads
+            .into_iter()
+            .map(|(url, path)| self.inner_download(&url, &path));
 
-    pub async fn download_multiple(
-        &self,
-        downloads: Vec<(&'static str, &'static str)>,
-    ) -> anyhow::Result<()> {
-        let mut tasks = Vec::new();
-
-        // self.multi_progress
-        //     .set_alignment(indicatif::MultiProgressAlignment::Top);
-
-        for (url, path) in downloads {
-            let url = url.to_string();
-            let path = path.to_string();
-
-            // 使用Arc克隆指针，非常高效
-            let client = self.client.clone();
-            let multi_progress = self.multi_progress.clone();
-
-            // 创建一个轻量级任务
-            let task =
-                tokio::spawn(
-                    async move { self_download(&client, &multi_progress, &url, &path).await },
-                );
-
-            tasks.push(task);
-        }
-
-        // 等待所有下载任务完成
-        for task in tasks {
-            task.await??;
-        }
+        futures::future::try_join_all(futures).await?;
+        self.multi_progress.set_move_cursor(true);
+        self.multi_progress.clear()?;
+        println!("🎉 Download completed");
 
         Ok(())
     }
 
-    pub async fn download(&self, url: &str, path: &str) -> anyhow::Result<()> {
-        // 直接使用self_download函数，避免代码重复
-        self_download(&self.client, &self.multi_progress, url, path).await
+    fn prepare_progress_bar(&self) -> ProgressBar {
+        let progress_bar = ProgressBar::with_draw_target(Some(0), ProgressDrawTarget::stdout());
+        progress_bar.set_style(
+            indicatif::ProgressStyle::with_template(
+                "{spinner:.green} [{elapsed_precise}] {bar:25.green/white.dim} {bytes}/{total_bytes} {wide_msg:.dim}",
+            )
+            .unwrap()
+            .progress_chars("━━"),
+        );
+        self.multi_progress.add(progress_bar)
     }
-}
 
-// 提取为独立函数，避免需要传递整个DownloadProgress实例
-async fn self_download(
-    client: &Arc<reqwest::Client>,
-    multi_progress: &indicatif::MultiProgress,
-    url: &str,
-    path: &str,
-) -> anyhow::Result<()> {
-    // 创建指数退避配置
-    let backoff = ExponentialBackoff {
-        initial_interval: Duration::from_millis(500),
-        randomization_factor: 0.15,
-        multiplier: 1.5,
-        max_interval: Duration::from_secs(5),
-        max_elapsed_time: Some(Duration::from_secs(120)),
-        ..Default::default()
-    };
+    async fn inner_download(&self, url: &str, path: &str) -> anyhow::Result<()> {
+        let temp_dir = env::temp_dir();
+        let temp_file = temp_dir.join(path);
 
-    let temp_dir = env::temp_dir();
-    let temp_file = temp_dir.join(path);
+        let progress_bar = self.prepare_progress_bar();
 
-    let progress_bar = ProgressBar::with_draw_target(Some(0), ProgressDrawTarget::stdout());
+        backoff::future::retry(self.backoff(), || async {
+            let mut downloaded_size = temp_file.metadata().map(|item| item.len()).unwrap_or(0);
 
-    progress_bar.set_style(
-        indicatif::ProgressStyle::with_template(
-            "{spinner:.green} [{elapsed_precise}] {bar:25.green/white.dim} {bytes}/{total_bytes} {wide_msg:.dim}",
-        )
-        .unwrap()
-        .progress_chars("━━"),
-    );
+            let request = self
+                .client
+                .get(url)
+                .header("Range", format!("bytes={}-", downloaded_size));
 
-    let progress_bar = multi_progress.add(progress_bar);
+            let response = request.send().await.map_err(|e| {
+                if is_retry_error(&e) {
+                    // 网络相关的临时错误，应该重试
+                    backoff::Error::transient(anyhow::Error::from(e))
+                } else {
+                    // 其他错误视为永久错误
+                    backoff::Error::permanent(anyhow::Error::from(e))
+                }
+            })?;
 
-    backoff::future::retry(backoff, || async {
-        let downloaded_size = if temp_file.exists() {
-            temp_file.metadata().unwrap().len()
-        } else {
-            0
-        };
-
-        let mut request = client.get(url);
-
-        if downloaded_size > 0 {
-            request = request.header("Range", format!("bytes={}-", downloaded_size));
-        }
-
-        let response = request.send().await.map_err(|e| {
-            if is_retry_error(&e) {
-                // 网络相关的临时错误，应该重试
-                backoff::Error::transient(anyhow::Error::from(e))
-            } else {
-                // 其他错误视为永久错误
-                backoff::Error::permanent(anyhow::Error::from(e))
+            if !response.status().is_success() {
+                // return Err(backoff::Error::Permanent(anyhow::anyhow!(
+                //     "Get request failed, Http status code not ok {} : {:?}",
+                //     response.status(),
+                //     response
+                // )));
+                return Err(backoff::Error::transient(anyhow::anyhow!(
+                    "Get request failed, Http status code not ok {} : {:?}",
+                    response.status(),
+                    response
+                )));
             }
-        })?;
 
-        if !response.status().is_success() {
-            return Err(backoff::Error::Permanent(anyhow::anyhow!(
-                "Get request failed, Http status code not ok {} : {:?}",
-                response.status(),
-                response
-            )));
-        }
+            let supports_resume = response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
 
-        let supports_resume = response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
+            let remaining_size = response.content_length().unwrap_or(0);
 
-        let file = if supports_resume && downloaded_size > 0 {
-            tokio::fs::OpenOptions::new()
-                .append(true)
+            let total_size = remaining_size + downloaded_size;
+
+            let mut state = DownloadState::new(url.to_string(), downloaded_size, total_size);
+
+            let file = tokio::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(!supports_resume || downloaded_size == 0)
+                .append(supports_resume && downloaded_size > 0)
                 .open(temp_file.clone())
                 .await
-                .map_err(|e| backoff::Error::Permanent(anyhow::Error::from(e)))?
-        } else {
-            tokio::fs::File::create(temp_file.clone())
-                .await
-                .map_err(|e| backoff::Error::Permanent(anyhow::Error::from(e)))?
-        };
+                .map_err(|e| backoff::Error::Permanent(anyhow::Error::from(e)))?;
 
-        let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
+            let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
 
-        let total_size = response.content_length();
+            let stream = response.bytes_stream();
 
-        let stream = response.bytes_stream();
+            progress_bar.set_length(total_size);
+            progress_bar.set_position(downloaded_size);
 
-        progress_bar.set_length(total_size.unwrap_or(0) + downloaded_size);
-        progress_bar.set_position(downloaded_size);
+            tokio::pin!(stream);
 
-        let download_stream = ProgressBarStream::builder()
-            .progress_bar(progress_bar.clone())
-            .current_size(downloaded_size)
-            .downloaded_size(downloaded_size)
-            .url(url.to_string())
-            .remaining_size(total_size.unwrap_or(0))
-            .inner(Box::pin(stream))
-            .build();
-
-        tokio::pin!(download_stream);
-
-        while let Some(chunk) =
-            tokio::time::timeout(Duration::from_millis(500), download_stream.next())
+            while let Some(chunk) = tokio::time::timeout(Duration::from_millis(500), stream.next())
                 .await
                 .map_err(|e| backoff::Error::transient(anyhow::Error::from(e)))?
                 .transpose()
@@ -202,61 +141,52 @@ async fn self_download(
                         backoff::Error::permanent(anyhow::Error::from(e))
                     }
                 })?
-        {
+            {
+                downloaded_size += chunk.len() as u64;
+                // progress_bar.set_position(downloaded_size);
+                // progress_bar.set_message(format!("{}", url));
+
+                state.update_progress(chunk.len(), &progress_bar);
+
+                writer
+                    .write_all(&chunk)
+                    .await
+                    .map_err(|e| backoff::Error::Permanent(anyhow::Error::from(e)))?;
+
+                // 减少刷新频率，提高性能
+                if writer.buffer().len() >= 512 * 1024 {
+                    writer
+                        .flush()
+                        .await
+                        .map_err(|e| backoff::Error::Permanent(anyhow::Error::from(e)))?;
+                }
+            }
+
+            // 确保所有数据都写入
             writer
-                .write_all(&chunk)
+                .flush()
                 .await
                 .map_err(|e| backoff::Error::Permanent(anyhow::Error::from(e)))?;
 
-            // 减少刷新频率，提高性能
-            if writer.buffer().len() >= 512 * 1024 {
-                writer
-                    .flush()
-                    .await
-                    .map_err(|e| backoff::Error::Permanent(anyhow::Error::from(e)))?;
-            }
-        }
+            progress_bar.finish_with_message(format!("Downloaded {} to {}", url, path));
 
-        // 确保所有数据都写入
-        writer
-            .flush()
-            .await
-            .map_err(|e| backoff::Error::Permanent(anyhow::Error::from(e)))?;
+            tokio::fs::rename(&temp_file, path)
+                .await
+                .map_err(|e| backoff::Error::Permanent(anyhow::Error::from(e)))?;
 
-        progress_bar.finish_with_message(format!("Downloaded {} to {}", url, path));
-        Ok(())
-    })
-    .await
-    .map_err(|e| anyhow::anyhow!("Download failed after retries: {:#?}", e))?;
-
-    tokio::fs::rename(&temp_file, path)
+            // progress_bar.finish_and_clear();
+            Ok(())
+        })
         .await
-        .map_err(|e| anyhow::anyhow!("Rename failed: {}", e))?;
+        .inspect_err(|e| {
+            println!("---> inner_download error: {:?}", e);
+        })?;
 
-    Ok(())
+        Ok(())
+    }
 }
 
 // 提取为独立函数
 fn is_retry_error(e: &reqwest::Error) -> bool {
     e.is_timeout() || e.is_connect() || e.is_request() || e.is_decode()
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[tokio::test]
-//     async fn test_download_progress() {
-//         let download_progress = DownloadProgress::builder().build();
-
-//         download_progress
-//             .download(
-//                 "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64",
-//                 "node-v10.23.3-win-x86.7z",
-//             )
-//             .await
-//             .unwrap();
-
-//         println!("{:?}", download_progress);
-//     }
-// }
