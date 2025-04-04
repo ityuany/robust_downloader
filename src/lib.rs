@@ -1,11 +1,11 @@
-use std::{env, path::Path, time::Duration};
+use std::{env, path::Path, sync::Arc, time::Duration};
 
 use backoff::ExponentialBackoff;
 use err::ProgressDownloadError;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressDrawTarget};
 use state::DownloadState;
-use tokio::io::AsyncWriteExt;
+use tokio::{io::AsyncWriteExt, sync::Semaphore};
 use typed_builder::TypedBuilder;
 
 mod err;
@@ -22,6 +22,9 @@ pub struct DownloadProgress {
   // 添加新的配置参数，默认为 512KB
   #[builder(default = 512 * 1024)]
   flush_threshold: usize,
+
+  #[builder(default = 2)]
+  max_concurrent: usize,
 }
 
 impl DownloadProgress {
@@ -49,9 +52,20 @@ impl DownloadProgress {
 
     let mp = indicatif::MultiProgress::new();
 
-    let futures = downloads
-      .into_iter()
-      .map(|(url, path)| self.download_with_retry(&client, &mp, url, path));
+    // 创建信号量来控制并发
+    let semaphore = Arc::new(Semaphore::new(self.max_concurrent));
+
+    let futures = downloads.into_iter().map(|(url, path)| {
+      let sem = semaphore.clone();
+      let client = client.clone();
+      let mp = mp.clone();
+
+      async move {
+        // 获取信号量许可
+        let _permit = sem.acquire().await?;
+        self.download_with_retry(&client, &mp, url, path).await
+      }
+    });
 
     futures::future::try_join_all(futures).await?;
     mp.set_move_cursor(true);

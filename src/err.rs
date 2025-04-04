@@ -10,6 +10,9 @@ pub enum ProgressDownloadError {
 
   #[error("Timeout error: {0}")]
   Timeout(#[from] tokio::time::error::Elapsed),
+
+  #[error("Semaphore error: {0}")]
+  Semaphore(#[from] tokio::sync::AcquireError),
 }
 
 impl ProgressDownloadError {
@@ -61,6 +64,7 @@ impl ProgressDownloadError {
         }
       }
       Self::Timeout(_) => backoff::Error::transient(self),
+      Self::Semaphore(_) => backoff::Error::transient(self),
     }
   }
 }
