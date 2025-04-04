@@ -132,7 +132,7 @@ impl DownloadProgress {
       .downloaded_size(downloaded_size)
       .remaining_size(remaining_size)
       .url(url.to_string())
-      .progress_bar(&progress_bar)
+      .progress_bar(progress_bar)
       .build();
 
     let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
