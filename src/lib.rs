@@ -15,6 +15,10 @@ mod state;
 pub struct DownloadProgress {
   #[builder(default = Duration::from_millis(2_000))]
   connect_timeout: Duration,
+
+  #[builder(default = Duration::from_secs(60))]
+  timeout: Duration,
+
   // 添加新的配置参数，默认为 512KB
   #[builder(default = 512 * 1024)]
   flush_threshold: usize,
@@ -77,7 +81,8 @@ impl DownloadProgress {
   ) -> Result<reqwest::Response, ProgressDownloadError> {
     let request = client
       .get(url)
-      .header("Range", format!("bytes={}-", downloaded_size));
+      .header("Range", format!("bytes={}-", downloaded_size))
+      .timeout(self.timeout);
 
     let response = request.send().await?;
 
