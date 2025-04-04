@@ -99,11 +99,13 @@ impl DownloadProgress {
     let supports_resume = response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
     let remaining_size = response.content_length().unwrap_or(0);
 
+    let should_resume = supports_resume && downloaded_size > 0;
+
     let file = tokio::fs::OpenOptions::new()
       .write(true)
       .create(true)
-      .truncate(!supports_resume || downloaded_size == 0)
-      .append(supports_resume && downloaded_size > 0)
+      .truncate(!should_resume)
+      .append(should_resume)
       .open(temp_file)
       .await?;
 
