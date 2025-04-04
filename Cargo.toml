@@ -1,12 +1,13 @@
 [package]
-authors    = ["ityuany <519495771@qq.com>"]
-categories = ["network-programming", "asynchronous", "filesystem", "command-line-utilities"]
-edition    = "2024"
-include    = ["src/**/*.rs", "Cargo.toml", "LICENSE", "README.md"]
-keywords   = ["downloader", "concurrent", "progress", "retry"]
-license    = "MIT"
-name       = "robust_downloader"
-version    = "0.0.1"
+authors     = ["ityuany <519495771@qq.com>"]
+categories  = ["network-programming", "asynchronous", "filesystem", "command-line-utilities"]
+description = "A robust, concurrent file downloader with retry capabilities and progress tracking."
+edition     = "2024"
+include     = ["src/**/*.rs", "Cargo.toml", "LICENSE", "README.md"]
+keywords    = ["downloader", "concurrent", "progress", "retry"]
+license     = "MIT"
+name        = "robust_downloader"
+version     = "0.0.1"
 
 [dependencies]
 backoff       = { version = "0.4.0", features = ["tokio", "futures"] }
