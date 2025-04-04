@@ -11,23 +11,67 @@ mod err;
 mod task;
 mod tracker;
 
+/// A robust, concurrent file downloader with retry capabilities and progress tracking.
+///
+/// `RobustDownloader` provides a reliable way to download multiple files concurrently with features like:
+/// - Automatic retries with exponential backoff
+/// - Progress bars for visual feedback
+/// - Concurrent downloads with configurable limits
+/// - Timeouts and connection management
+/// - Temporary file handling for safe downloads
+///
+/// # Example
+///
+/// ```rust
+/// use robust_downloader::RobustDownloader;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     let downloader = RobustDownloader::builder()
+///         .max_concurrent(4)
+///         .build();
+///
+///     let downloads = vec![
+///         ("https://example.com/file1.zip", "file1.zip"),
+///         ("https://example.com/file2.zip", "file2.zip"),
+///     ];
+///
+///     downloader.download(downloads).await?;
+///     Ok(())
+/// }
+/// ```
 #[derive(Debug, TypedBuilder, Clone)]
 pub struct RobustDownloader {
+  /// Connection timeout for each download request.
+  /// Defaults to 2 seconds.
   #[builder(default = Duration::from_millis(2_000))]
   connect_timeout: Duration,
 
+  /// Overall timeout for each download operation.
+  /// Defaults to 60 seconds.
   #[builder(default = Duration::from_secs(60))]
   timeout: Duration,
 
-  // 添加新的配置参数，默认为 512KB
+  /// Buffer size threshold for flushing downloaded data to disk.
+  /// Defaults to 512KB.
   #[builder(default = 512 * 1024)]
   flush_threshold: usize,
 
+  /// Maximum number of concurrent downloads.
+  /// Defaults to 2.
   #[builder(default = 2)]
   max_concurrent: usize,
 }
 
 impl RobustDownloader {
+  /// Creates an exponential backoff configuration for retry attempts.
+  ///
+  /// The configuration uses the following parameters:
+  /// - Initial interval: 500ms
+  /// - Randomization factor: 15%
+  /// - Multiplier: 1.5x
+  /// - Maximum interval: 5 seconds
+  /// - Maximum elapsed time: 120 seconds
   fn backoff(&self) -> ExponentialBackoff {
     ExponentialBackoff {
       // 初始等待 0.5 秒,加快重试速度
@@ -44,6 +88,32 @@ impl RobustDownloader {
     }
   }
 
+  /// Downloads multiple files concurrently with progress tracking and retry capabilities.
+  ///
+  /// # Arguments
+  ///
+  /// * `downloads` - A vector of tuples containing (url, target_path) pairs.
+  ///                 The URL specifies where to download from, and target_path is where to save the file.
+  ///
+  /// # Returns
+  ///
+  /// Returns `Ok(())` if all downloads complete successfully, or a `ProgressDownloadError`
+  /// if any download fails after all retry attempts.
+  ///
+  /// # Example
+  ///
+  /// ```rust
+  /// # use robust_downloader::RobustDownloader;
+  /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+  /// let downloader = RobustDownloader::builder().build();
+  /// let files = vec![
+  ///     ("https://example.com/file1.txt", "local/file1.txt"),
+  ///     ("https://example.com/file2.txt", "local/file2.txt"),
+  /// ];
+  /// downloader.download(files).await?;
+  /// # Ok(())
+  /// # }
+  /// ```
   pub async fn download(&self, downloads: Vec<(&str, &str)>) -> Result<(), ProgressDownloadError> {
     let client = reqwest::Client::builder()
       .connect_timeout(self.connect_timeout)
@@ -75,6 +145,14 @@ impl RobustDownloader {
     Ok(())
   }
 
+  /// Creates a new progress bar with a standardized style for download tracking.
+  ///
+  /// The progress bar includes:
+  /// - A green spinner
+  /// - Elapsed time
+  /// - A 25-character wide progress bar
+  /// - Downloaded bytes / Total bytes
+  /// - Additional status messages
   fn prepare_progress_bar(&self) -> ProgressBar {
     let progress_bar = ProgressBar::with_draw_target(Some(0), ProgressDrawTarget::stdout());
     progress_bar.set_style(
@@ -87,6 +165,22 @@ impl RobustDownloader {
     progress_bar
   }
 
+  /// Attempts to download a single file with automatic retries on failure.
+  ///
+  /// This method implements the retry logic using exponential backoff and
+  /// handles temporary file management to ensure atomic file operations.
+  ///
+  /// # Arguments
+  ///
+  /// * `client` - The HTTP client to use for the download
+  /// * `mp` - Multi-progress bar for tracking multiple downloads
+  /// * `url` - The URL to download from
+  /// * `target` - The local path where the file should be saved
+  ///
+  /// # Returns
+  ///
+  /// Returns `Ok(())` if the download succeeds, or a `ProgressDownloadError`
+  /// if the download fails after all retry attempts.
   async fn download_with_retry(
     &self,
     client: &reqwest::Client,
