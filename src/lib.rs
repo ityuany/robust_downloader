@@ -132,13 +132,14 @@ impl DownloadProgress {
       .downloaded_size(downloaded_size)
       .remaining_size(remaining_size)
       .url(url.to_string())
+      .progress_bar(&progress_bar)
       .build();
 
     let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
 
     let stream = response.bytes_stream();
 
-    state.init_progress(progress_bar);
+    state.init_progress();
 
     tokio::pin!(stream);
 
@@ -146,7 +147,7 @@ impl DownloadProgress {
       .await?
       .transpose()?
     {
-      state.update_progress(chunk.len(), progress_bar);
+      state.update_progress(chunk.len());
 
       writer.write_all(&chunk).await?;
 
