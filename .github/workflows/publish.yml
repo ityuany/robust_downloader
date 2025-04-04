@@ -1,0 +1,46 @@
+name: Publish to crates.io
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送带 v 前缀的标签时触发，例如 v0.1.0
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run tests
+        run: cargo test --all-features
+
+      - name: prerelease
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          prerelease: false
+
+      - name: Publish to crates.io
+        run: cargo publish --token ${CRATES_TOKEN}
+        env:
+          CRATES_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+
+      - name: release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: | 
+          echo "Updating release..."
+          gh release edit ${{ github.ref_name }} --draft=false --latest
+
+        
