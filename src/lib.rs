@@ -4,12 +4,12 @@ use backoff::ExponentialBackoff;
 use err::ProgressDownloadError;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressDrawTarget};
-use state::DownloadState;
+use progress_bar_delegate::ProgressBarDelegate;
 use tokio::{io::AsyncWriteExt, sync::Semaphore};
 use typed_builder::TypedBuilder;
 
 mod err;
-mod state;
+mod progress_bar_delegate;
 
 #[derive(Debug, TypedBuilder, Clone)]
 pub struct DownloadProgress {
@@ -109,7 +109,6 @@ impl DownloadProgress {
     progress_bar: &indicatif::ProgressBar,
     temp_file: P,
     url: &str,
-    path: &str,
   ) -> Result<(), ProgressDownloadError> {
     let temp_file = temp_file.as_ref();
     let downloaded_size = temp_file.metadata().map(|item| item.len()).unwrap_or(0);
@@ -128,18 +127,18 @@ impl DownloadProgress {
       .open(temp_file)
       .await?;
 
-    let mut state = DownloadState::builder()
+    let mut delegate = ProgressBarDelegate::builder()
+      .progress_bar(progress_bar)
       .downloaded_size(downloaded_size)
       .remaining_size(remaining_size)
       .url(url.to_string())
-      .progress_bar(progress_bar)
       .build();
+
+    delegate.init_progress();
 
     let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
 
     let stream = response.bytes_stream();
-
-    state.init_progress();
 
     tokio::pin!(stream);
 
@@ -147,7 +146,7 @@ impl DownloadProgress {
       .await?
       .transpose()?
     {
-      state.update_progress(chunk.len());
+      delegate.update_progress(chunk.len());
 
       writer.write_all(&chunk).await?;
 
@@ -159,10 +158,6 @@ impl DownloadProgress {
 
     // 确保所有数据都写入
     writer.flush().await?;
-
-    progress_bar.finish_with_message(format!("Downloaded {} to {}", url, path));
-
-    tokio::fs::rename(&temp_file, path).await?;
 
     Ok(())
   }
@@ -182,11 +177,15 @@ impl DownloadProgress {
 
     backoff::future::retry(self.backoff(), || async {
       self
-        .operation(client, &progress_bar, &temp_file, url, path)
+        .operation(client, &progress_bar, &temp_file, url)
         .await
-        .map_err(|e| e.into_backoff_err())
+        .map_err(ProgressDownloadError::into_backoff_err)
     })
     .await?;
+
+    progress_bar.finish_with_message(format!("Downloaded {} to {}", url, path));
+
+    tokio::fs::rename(&temp_file, path).await?;
 
     Ok(())
   }
