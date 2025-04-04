@@ -1,12 +1,10 @@
 [package]
-edition = "2021"
-name    = "progress_downloader"
-version = "0.1.0"
+edition = "2024"
+name    = "robust_downloader"
+version = "0.0.1"
 
 [dependencies]
-# anyhow        = "1.0.97"
-backoff = { version = "0.4.0", features = ["tokio", "futures"] }
-# bytes         = "1.10.1"
+backoff       = { version = "0.4.0", features = ["tokio", "futures"] }
 futures       = "0.3.31"
 futures-util  = "0.3.31"
 indicatif     = "0.17.11"

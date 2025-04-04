@@ -1,18 +1,18 @@
-use std::{env, path::Path, sync::Arc, time::Duration};
+use std::{env, sync::Arc, time::Duration};
 
 use backoff::ExponentialBackoff;
 use err::ProgressDownloadError;
-use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressDrawTarget};
-use progress_bar_delegate::ProgressBarDelegate;
-use tokio::{io::AsyncWriteExt, sync::Semaphore};
+use task::DownloadTasker;
+use tokio::sync::Semaphore;
 use typed_builder::TypedBuilder;
 
 mod err;
-mod progress_bar_delegate;
+mod task;
+mod tracker;
 
 #[derive(Debug, TypedBuilder, Clone)]
-pub struct DownloadProgress {
+pub struct RobustDownloader {
   #[builder(default = Duration::from_millis(2_000))]
   connect_timeout: Duration,
 
@@ -27,7 +27,7 @@ pub struct DownloadProgress {
   max_concurrent: usize,
 }
 
-impl DownloadProgress {
+impl RobustDownloader {
   fn backoff(&self) -> ExponentialBackoff {
     ExponentialBackoff {
       // 初始等待 0.5 秒,加快重试速度
@@ -87,105 +87,36 @@ impl DownloadProgress {
     progress_bar
   }
 
-  async fn send(
-    &self,
-    client: &reqwest::Client,
-    url: &str,
-    downloaded_size: u64,
-  ) -> Result<reqwest::Response, ProgressDownloadError> {
-    let request = client
-      .get(url)
-      .header("Range", format!("bytes={}-", downloaded_size))
-      .timeout(self.timeout);
-
-    let response = request.send().await?;
-
-    Ok(response)
-  }
-
-  async fn operation<P: AsRef<Path>>(
-    &self,
-    client: &reqwest::Client,
-    progress_bar: &indicatif::ProgressBar,
-    temp_file: P,
-    url: &str,
-  ) -> Result<(), ProgressDownloadError> {
-    let temp_file = temp_file.as_ref();
-    let downloaded_size = temp_file.metadata().map(|item| item.len()).unwrap_or(0);
-
-    let response = self.send(client, url, downloaded_size).await?;
-    let supports_resume = response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
-    let remaining_size = response.content_length().unwrap_or(0);
-
-    let should_resume = supports_resume && downloaded_size > 0;
-
-    let file = tokio::fs::OpenOptions::new()
-      .write(true)
-      .create(true)
-      .truncate(!should_resume)
-      .append(should_resume)
-      .open(temp_file)
-      .await?;
-
-    let mut delegate = ProgressBarDelegate::builder()
-      .progress_bar(progress_bar)
-      .downloaded_size(downloaded_size)
-      .remaining_size(remaining_size)
-      .url(url.to_string())
-      .build();
-
-    delegate.init_progress();
-
-    let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
-
-    let stream = response.bytes_stream();
-
-    tokio::pin!(stream);
-
-    while let Some(chunk) = tokio::time::timeout(Duration::from_millis(500), stream.next())
-      .await?
-      .transpose()?
-    {
-      delegate.update_progress(chunk.len());
-
-      writer.write_all(&chunk).await?;
-
-      // 减少刷新频率，提高性能
-      if writer.buffer().len() >= self.flush_threshold {
-        writer.flush().await?;
-      }
-    }
-
-    // 确保所有数据都写入
-    writer.flush().await?;
-
-    Ok(())
-  }
-
   async fn download_with_retry(
     &self,
     client: &reqwest::Client,
     mp: &indicatif::MultiProgress,
     url: &str,
-    path: &str,
+    target: &str,
   ) -> Result<(), ProgressDownloadError> {
     let temp_dir = env::temp_dir();
-    let temp_file = temp_dir.join(path);
+    let temp_file = temp_dir.join(target);
 
     let progress_bar = self.prepare_progress_bar();
     let progress_bar = mp.add(progress_bar);
 
+    let tasker = DownloadTasker::builder()
+      .client(client.clone())
+      .progress_bar(progress_bar)
+      .url(url.to_string())
+      .tmp_file(temp_file)
+      .target_file(target)
+      .timeout(self.timeout)
+      .flush_threshold(self.flush_threshold)
+      .build();
+
     backoff::future::retry(self.backoff(), || async {
-      self
-        .operation(client, &progress_bar, &temp_file, url)
+      tasker
+        .download()
         .await
         .map_err(ProgressDownloadError::into_backoff_err)
     })
     .await?;
-
-    progress_bar.finish_with_message(format!("Downloaded {} to {}", url, path));
-
-    tokio::fs::rename(&temp_file, path).await?;
 
     Ok(())
   }

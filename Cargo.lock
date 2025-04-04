@@ -840,20 +840,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "progress_downloader"
-version = "0.1.0"
-dependencies = [
- "backoff",
- "futures",
- "futures-util",
- "indicatif",
- "reqwest",
- "thiserror",
- "tokio",
- "typed-builder",
-]
-
-[[package]]
 name = "quote"
 version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -956,6 +942,20 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "robust_downloader"
+version = "0.0.1"
+dependencies = [
+ "backoff",
+ "futures",
+ "futures-util",
+ "indicatif",
+ "reqwest",
+ "thiserror",
+ "tokio",
+ "typed-builder",
 ]
 
 [[package]]

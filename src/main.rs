@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use progress_downloader::DownloadProgress;
+use robust_downloader::RobustDownloader;
 
 #[tokio::main]
 async fn main() {
-  let download_progress = DownloadProgress::builder()
+  let download_progress = RobustDownloader::builder()
     .connect_timeout(Duration::from_secs(1))
     .timeout(Duration::from_secs(60))
     .flush_threshold(1024 * 1024)

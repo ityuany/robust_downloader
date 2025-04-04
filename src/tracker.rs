@@ -2,7 +2,7 @@ use std::time::Instant;
 use typed_builder::TypedBuilder;
 
 #[derive(Debug, TypedBuilder)]
-pub struct ProgressBarDelegate<'a> {
+pub struct DownloadTracker<'a> {
   #[builder]
   downloaded_size: u64,
   #[builder]
@@ -15,7 +15,7 @@ pub struct ProgressBarDelegate<'a> {
   progress_bar: &'a indicatif::ProgressBar,
 }
 
-impl<'a> ProgressBarDelegate<'a> {
+impl<'a> DownloadTracker<'a> {
   pub fn init_progress(&mut self) {
     self
       .progress_bar
