@@ -15,6 +15,9 @@ mod state;
 pub struct DownloadProgress {
   #[builder(default = Duration::from_millis(2_000))]
   connect_timeout: Duration,
+  // 添加新的配置参数，默认为 512KB
+  #[builder(default = 512 * 1024)]
+  flush_threshold: usize,
 }
 
 impl DownloadProgress {
@@ -96,12 +99,6 @@ impl DownloadProgress {
     let supports_resume = response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
     let remaining_size = response.content_length().unwrap_or(0);
 
-    let mut state = DownloadState::builder()
-      .downloaded_size(downloaded_size)
-      .remaining_size(remaining_size)
-      .url(url.to_string())
-      .build();
-
     let file = tokio::fs::OpenOptions::new()
       .write(true)
       .create(true)
@@ -109,6 +106,12 @@ impl DownloadProgress {
       .append(supports_resume && downloaded_size > 0)
       .open(temp_file)
       .await?;
+
+    let mut state = DownloadState::builder()
+      .downloaded_size(downloaded_size)
+      .remaining_size(remaining_size)
+      .url(url.to_string())
+      .build();
 
     let mut writer = tokio::io::BufWriter::with_capacity(1024 * 1024, file);
 
@@ -127,7 +130,7 @@ impl DownloadProgress {
       writer.write_all(&chunk).await?;
 
       // 减少刷新频率，提高性能
-      if writer.buffer().len() >= 512 * 1024 {
+      if writer.buffer().len() >= self.flush_threshold {
         writer.flush().await?;
       }
     }
