@@ -19,6 +19,11 @@ pub struct DownloadState {
 }
 
 impl DownloadState {
+  pub fn init_progress(&mut self, progress_bar: &ProgressBar) {
+    progress_bar.set_length(self.remaining_size + self.downloaded_size);
+    progress_bar.set_position(self.downloaded_size);
+  }
+
   pub fn update_progress(&mut self, chunk_size: usize, progress_bar: &ProgressBar) {
     self.downloaded_size += chunk_size as u64;
     progress_bar.set_position(self.downloaded_size);

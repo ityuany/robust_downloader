@@ -91,18 +91,10 @@ impl DownloadProgress {
   ) -> Result<(), ProgressDownloadError> {
     let temp_file = temp_file.as_ref();
     let downloaded_size = temp_file.metadata().map(|item| item.len()).unwrap_or(0);
-    // let response = self.send(client, url, downloaded_size).await.map_err(|e| {
-    //     if is_retry_error(&e) {
-    //         backoff::Error::transient(e)
-    //     } else {
-    //         backoff::Error::permanent(e)
-    //     }
-    // })?;
+
     let response = self.send(client, url, downloaded_size).await?;
     let supports_resume = response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
     let remaining_size = response.content_length().unwrap_or(0);
-
-    let total_size = remaining_size + downloaded_size;
 
     let mut state = DownloadState::builder()
       .downloaded_size(downloaded_size)
@@ -122,8 +114,7 @@ impl DownloadProgress {
 
     let stream = response.bytes_stream();
 
-    progress_bar.set_length(total_size);
-    progress_bar.set_position(downloaded_size);
+    state.init_progress(progress_bar);
 
     tokio::pin!(stream);
 
