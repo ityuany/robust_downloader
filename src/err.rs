@@ -13,6 +13,9 @@ pub enum ProgressDownloadError {
 
   #[error("Semaphore error: {0}")]
   Semaphore(#[from] tokio::sync::AcquireError),
+
+  #[error("Path error: {path}")]
+  Path { path: String },
 }
 
 impl ProgressDownloadError {
@@ -65,6 +68,7 @@ impl ProgressDownloadError {
       }
       Self::Timeout(_) => backoff::Error::transient(self),
       Self::Semaphore(_) => backoff::Error::transient(self),
+      Self::Path { .. } => backoff::Error::permanent(self),
     }
   }
 }

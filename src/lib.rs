@@ -1,4 +1,4 @@
-use std::{env, sync::Arc, time::Duration};
+use std::{env, path::Path, sync::Arc, time::Duration};
 
 use backoff::ExponentialBackoff;
 use err::ProgressDownloadError;
@@ -114,7 +114,10 @@ impl RobustDownloader {
   /// # Ok(())
   /// # }
   /// ```
-  pub async fn download(&self, downloads: Vec<(&str, &str)>) -> Result<(), ProgressDownloadError> {
+  pub async fn download<P>(&self, downloads: Vec<(&str, P)>) -> Result<(), ProgressDownloadError>
+  where
+    P: AsRef<Path>,
+  {
     let client = reqwest::Client::builder()
       .connect_timeout(self.connect_timeout)
       .pool_max_idle_per_host(0)
@@ -133,7 +136,14 @@ impl RobustDownloader {
       async move {
         // 获取信号量许可
         let _permit = sem.acquire().await?;
-        self.download_with_retry(&client, &mp, url, path).await
+        self
+          .download_with_retry(
+            &client,
+            &mp,
+            url,
+            path.as_ref().to_string_lossy().to_string().as_str(),
+          )
+          .await
       }
     });
 
@@ -181,15 +191,26 @@ impl RobustDownloader {
   ///
   /// Returns `Ok(())` if the download succeeds, or a `ProgressDownloadError`
   /// if the download fails after all retry attempts.
-  async fn download_with_retry(
+  async fn download_with_retry<P>(
     &self,
     client: &reqwest::Client,
     mp: &indicatif::MultiProgress,
     url: &str,
-    target: &str,
-  ) -> Result<(), ProgressDownloadError> {
+    target: P,
+  ) -> Result<(), ProgressDownloadError>
+  where
+    P: AsRef<Path>,
+  {
+    let target_file = target.as_ref();
+
+    let Some(file_name) = target_file.file_name() else {
+      return Err(ProgressDownloadError::Path {
+        path: target_file.to_string_lossy().to_string(),
+      });
+    };
+
     let temp_dir = env::temp_dir();
-    let temp_file = temp_dir.join(target);
+    let temp_file = temp_dir.join(file_name);
 
     let progress_bar = self.prepare_progress_bar();
     let progress_bar = mp.add(progress_bar);
@@ -199,7 +220,7 @@ impl RobustDownloader {
       .progress_bar(progress_bar)
       .url(url.to_string())
       .tmp_file(temp_file)
-      .target_file(target)
+      .target_file(target_file)
       .timeout(self.timeout)
       .flush_threshold(self.flush_threshold)
       .build();
