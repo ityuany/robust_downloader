@@ -3,6 +3,7 @@ use std::{env, path::Path, sync::Arc, time::Duration};
 use backoff::ExponentialBackoff;
 use err::ProgressDownloadError;
 use indicatif::{ProgressBar, ProgressDrawTarget};
+use reqwest::IntoUrl;
 use task::DownloadTasker;
 use tokio::sync::Semaphore;
 use typed_builder::TypedBuilder;
@@ -114,8 +115,9 @@ impl RobustDownloader {
   /// # Ok(())
   /// # }
   /// ```
-  pub async fn download<P>(&self, downloads: Vec<(&str, P)>) -> Result<(), ProgressDownloadError>
+  pub async fn download<U, P>(&self, downloads: Vec<(U, P)>) -> Result<(), ProgressDownloadError>
   where
+    U: IntoUrl + Clone,
     P: AsRef<Path>,
   {
     let client = reqwest::Client::builder()
@@ -191,14 +193,15 @@ impl RobustDownloader {
   ///
   /// Returns `Ok(())` if the download succeeds, or a `ProgressDownloadError`
   /// if the download fails after all retry attempts.
-  async fn download_with_retry<P>(
+  async fn download_with_retry<U, P>(
     &self,
     client: &reqwest::Client,
     mp: &indicatif::MultiProgress,
-    url: &str,
+    url: U,
     target: P,
   ) -> Result<(), ProgressDownloadError>
   where
+    U: IntoUrl + Clone,
     P: AsRef<Path>,
   {
     let target_file = target.as_ref();
@@ -218,7 +221,7 @@ impl RobustDownloader {
     let tasker = DownloadTasker::builder()
       .client(client.clone())
       .progress_bar(progress_bar)
-      .url(url.to_string())
+      .url(url)
       .tmp_file(temp_file)
       .target_file(target_file)
       .timeout(self.timeout)

@@ -1,6 +1,6 @@
-use std::time::Duration;
-
+use reqwest::Url;
 use robust_downloader::RobustDownloader;
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() {
@@ -21,19 +21,19 @@ async fn main() {
   let downloads = vec![
     (
       "https://nodejs.org/dist/v23.9.0/node-v23.9.0-linux-x64.tar.gz",
-      "node-v23.9.0-linux-x64.tar.gz",
+      "/Users/ityuany/GitRepository/progress_downloader/node-v23.9.0-linux-x64.tar.gz",
     ),
     (
       "https://nodejs.org/dist/v23.9.0/node-v23.9.0-linux-arm64.tar.gz",
-      "node-v23.9.0-linux-arm64.tar.gz1",
+      "/Users/ityuany/GitRepository/progress_downloader/node-v23.9.0-linux-arm64.tar.gz1",
     ),
     (
       "https://nodejs.org/dist/v23.9.0/node-v23.9.0-linux-arm64.tar.gz",
-      "node-v23.9.0-linux-arm64.tar.gz2",
+      "/Users/ityuany/GitRepository/progress_downloader/node-v23.9.0-linux-arm64.tar.gz2",
     ),
     (
       "https://nodejs.org/dist/v23.9.0/node-v23.9.0-linux-arm64.tar.gz",
-      "node-v23.9.0-linux-arm64.tar.gz3",
+      "/Users/ityuany/GitRepository/progress_downloader/node-v23.9.0-linux-arm64.tar.gz3",
     ),
   ];
 

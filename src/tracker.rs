@@ -1,8 +1,12 @@
+use reqwest::IntoUrl;
 use std::time::Instant;
 use typed_builder::TypedBuilder;
 
 #[derive(Debug, TypedBuilder)]
-pub struct DownloadTracker<'a> {
+pub struct DownloadTracker<'a, U>
+where
+  U: IntoUrl + Clone,
+{
   #[builder]
   downloaded_size: u64,
   #[builder]
@@ -10,12 +14,15 @@ pub struct DownloadTracker<'a> {
   #[builder(default = Instant::now())]
   start_time: Instant,
   #[builder]
-  url: String,
+  url: U,
   #[builder]
   progress_bar: &'a indicatif::ProgressBar,
 }
 
-impl<'a> DownloadTracker<'a> {
+impl<'a, U> DownloadTracker<'a, U>
+where
+  U: IntoUrl + Clone,
+{
   pub fn init_progress(&mut self) {
     self
       .progress_bar
@@ -41,7 +48,7 @@ impl<'a> DownloadTracker<'a> {
         * 100.0) as u64;
       self
         .progress_bar
-        .set_message(format!("{}% {} ", percentage, self.url));
+        .set_message(format!("{}% {} ", percentage, self.url.as_str()));
       // self.last_downloaded_size = self.downloaded_size;
     }
   }

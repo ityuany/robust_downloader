@@ -2,19 +2,20 @@ use std::{path::Path, time::Duration};
 
 use futures::StreamExt;
 use indicatif::ProgressBar;
+use reqwest::IntoUrl;
 use tokio::io::AsyncWriteExt;
 use typed_builder::TypedBuilder;
 
 use crate::{err::ProgressDownloadError, tracker::DownloadTracker};
 
 #[derive(Debug, TypedBuilder)]
-pub struct DownloadTasker<P: AsRef<Path>, TP: AsRef<Path>> {
+pub struct DownloadTasker<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> {
   #[builder]
   client: reqwest::Client,
   #[builder]
   progress_bar: ProgressBar,
   #[builder]
-  url: String,
+  url: U,
   #[builder]
   tmp_file: P,
   #[builder]
@@ -25,7 +26,7 @@ pub struct DownloadTasker<P: AsRef<Path>, TP: AsRef<Path>> {
   flush_threshold: usize,
 }
 
-impl<P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<P, TP> {
+impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, TP> {
   async fn send(&self, downloaded_size: u64) -> Result<reqwest::Response, ProgressDownloadError> {
     let request = self
       .client
@@ -90,7 +91,7 @@ impl<P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<P, TP> {
 
     self.progress_bar.finish_with_message(format!(
       "Downloaded {} to {}",
-      self.url,
+      self.url.as_str(),
       self.tmp_file.as_ref().display()
     ));
 
