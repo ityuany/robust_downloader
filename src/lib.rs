@@ -152,7 +152,6 @@ impl RobustDownloader {
     futures::future::try_join_all(futures).await?;
     mp.set_move_cursor(true);
     mp.clear()?;
-    println!("🎉 Download completed");
 
     Ok(())
   }
@@ -237,5 +236,21 @@ impl RobustDownloader {
     .await?;
 
     Ok(())
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[tokio::test]
+  async fn test_download() {
+    let downloader = RobustDownloader::builder()
+      .connect_timeout(Duration::from_secs(1))
+      .timeout(Duration::from_secs(60))
+      .flush_threshold(1024 * 1024)
+      .build();
+    let downloads = vec![("https://example.com/file1.txt", "local/file1.txt")];
+    downloader.download(downloads).await.unwrap();
   }
 }
