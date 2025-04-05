@@ -95,6 +95,11 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, T
       self.tmp_file.as_ref().display()
     ));
 
+    // 确保目标文件的父目录存在
+    if let Some(parent) = self.target_file.as_ref().parent() {
+      tokio::fs::create_dir_all(parent).await?;
+    }
+
     tokio::fs::rename(&self.tmp_file, self.target_file.as_ref()).await?;
 
     Ok(())
