@@ -3,7 +3,6 @@ use std::{env, path::Path, sync::Arc, time::Duration};
 use backoff::ExponentialBackoff;
 use err::ProgressDownloadError;
 use indicatif::{ProgressBar, ProgressDrawTarget};
-use item::DownloadItem;
 use reqwest::IntoUrl;
 use task::DownloadTasker;
 use tokio::sync::Semaphore;
@@ -13,6 +12,8 @@ mod err;
 mod item;
 mod task;
 mod tracker;
+
+pub use item::*;
 
 /// A robust, concurrent file downloader with retry capabilities and progress tracking.
 ///
