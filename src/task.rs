@@ -1,12 +1,13 @@
 use std::{path::Path, time::Duration};
 
 use futures::StreamExt;
+use hashery::Hashery;
 use indicatif::ProgressBar;
 use reqwest::IntoUrl;
 use tokio::io::AsyncWriteExt;
 use typed_builder::TypedBuilder;
 
-use crate::{err::ProgressDownloadError, tracker::DownloadTracker};
+use crate::{err::ProgressDownloadError, item::DownloadItem, tracker::DownloadTracker};
 
 #[derive(Debug, TypedBuilder)]
 pub struct DownloadTasker<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> {
@@ -14,12 +15,12 @@ pub struct DownloadTasker<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> {
   client: reqwest::Client,
   #[builder]
   progress_bar: ProgressBar,
-  #[builder]
-  url: U,
+
   #[builder]
   tmp_file: P,
+
   #[builder]
-  target_file: TP,
+  item: DownloadItem<U, TP>,
   #[builder]
   timeout: Duration,
   #[builder]
@@ -30,7 +31,7 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, T
   async fn send(&self, downloaded_size: u64) -> Result<reqwest::Response, ProgressDownloadError> {
     let request = self
       .client
-      .get(self.url.as_str())
+      .get(self.item.url.as_str())
       .header("Range", format!("bytes={}-", downloaded_size))
       .timeout(self.timeout);
 
@@ -61,7 +62,7 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, T
       .progress_bar(&self.progress_bar)
       .downloaded_size(downloaded_size)
       .remaining_size(remaining_size)
-      .url(self.url.clone())
+      .url(self.item.url.clone())
       .build();
 
     delegate.init_progress();
@@ -91,16 +92,30 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, T
 
     self.progress_bar.finish_with_message(format!(
       "Downloaded {} to {}",
-      self.url.as_str(),
+      self.item.url.as_str(),
       self.tmp_file.as_ref().display()
     ));
 
+    if let Some(integrity_hash) = &self.item.integrity_hash {
+      let actual = Hashery::builder()
+        .algorithm(integrity_hash.algorithm)
+        .build()
+        .digest(temp_file)
+        .await?;
+
+      let expect = integrity_hash.expect.clone();
+
+      if actual != expect {
+        return Err(ProgressDownloadError::IntegrityHash { expect, actual });
+      }
+    }
+
     // 确保目标文件的父目录存在
-    if let Some(parent) = self.target_file.as_ref().parent() {
+    if let Some(parent) = self.item.target.as_ref().parent() {
       tokio::fs::create_dir_all(parent).await?;
     }
 
-    tokio::fs::rename(&self.tmp_file, self.target_file.as_ref()).await?;
+    tokio::fs::rename(&self.tmp_file, self.item.target.as_ref()).await?;
 
     Ok(())
   }

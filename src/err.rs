@@ -16,6 +16,9 @@ pub enum ProgressDownloadError {
 
   #[error("Path error: {path}")]
   Path { path: String },
+
+  #[error("Integrity hash error: {expect} != {actual}")]
+  IntegrityHash { expect: String, actual: String },
 }
 
 impl ProgressDownloadError {
@@ -69,6 +72,7 @@ impl ProgressDownloadError {
       Self::Timeout(_) => backoff::Error::transient(self),
       Self::Semaphore(_) => backoff::Error::transient(self),
       Self::Path { .. } => backoff::Error::permanent(self),
+      Self::IntegrityHash { .. } => backoff::Error::permanent(self),
     }
   }
 }

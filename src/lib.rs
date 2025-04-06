@@ -3,12 +3,14 @@ use std::{env, path::Path, sync::Arc, time::Duration};
 use backoff::ExponentialBackoff;
 use err::ProgressDownloadError;
 use indicatif::{ProgressBar, ProgressDrawTarget};
+use item::DownloadItem;
 use reqwest::IntoUrl;
 use task::DownloadTasker;
 use tokio::sync::Semaphore;
 use typed_builder::TypedBuilder;
 
 mod err;
+mod item;
 mod task;
 mod tracker;
 
@@ -115,7 +117,10 @@ impl RobustDownloader {
   /// # Ok(())
   /// # }
   /// ```
-  pub async fn download<U, P>(&self, downloads: Vec<(U, P)>) -> Result<(), ProgressDownloadError>
+  pub async fn download<U, P>(
+    &self,
+    downloads: Vec<DownloadItem<U, P>>,
+  ) -> Result<(), ProgressDownloadError>
   where
     U: IntoUrl + Clone,
     P: AsRef<Path>,
@@ -130,7 +135,7 @@ impl RobustDownloader {
     // 创建信号量来控制并发
     let semaphore = Arc::new(Semaphore::new(self.max_concurrent));
 
-    let futures = downloads.into_iter().map(|(url, path)| {
+    let futures = downloads.into_iter().map(|item| {
       let sem = semaphore.clone();
       let client = client.clone();
       let mp = mp.clone();
@@ -138,14 +143,7 @@ impl RobustDownloader {
       async move {
         // 获取信号量许可
         let _permit = sem.acquire().await?;
-        self
-          .download_with_retry(
-            &client,
-            &mp,
-            url,
-            path.as_ref().to_string_lossy().to_string().as_str(),
-          )
-          .await
+        self.download_with_retry(&client, &mp, item).await
       }
     });
 
@@ -196,14 +194,13 @@ impl RobustDownloader {
     &self,
     client: &reqwest::Client,
     mp: &indicatif::MultiProgress,
-    url: U,
-    target: P,
+    item: DownloadItem<U, P>,
   ) -> Result<(), ProgressDownloadError>
   where
     U: IntoUrl + Clone,
     P: AsRef<Path>,
   {
-    let target_file = target.as_ref();
+    let target_file = item.target.as_ref();
 
     let Some(file_name) = target_file.file_name() else {
       return Err(ProgressDownloadError::Path {
@@ -220,9 +217,8 @@ impl RobustDownloader {
     let tasker = DownloadTasker::builder()
       .client(client.clone())
       .progress_bar(progress_bar)
-      .url(url)
+      .item(item)
       .tmp_file(temp_file)
-      .target_file(target_file)
       .timeout(self.timeout)
       .flush_threshold(self.flush_threshold)
       .build();
@@ -241,6 +237,10 @@ impl RobustDownloader {
 
 #[cfg(test)]
 mod tests {
+  use hashery::Algorithm;
+
+  use crate::item::IntegrityHash;
+
   use super::*;
 
   #[tokio::test]
@@ -250,7 +250,18 @@ mod tests {
       .timeout(Duration::from_secs(60))
       .flush_threshold(1024 * 1024)
       .build();
-    let downloads = vec![("https://example.com/file1.txt", "local/file1.txt")];
+    let downloads = vec![
+      DownloadItem::builder()
+        .url("https://nodejs.org/dist/v23.9.0/node-v23.9.0.tar.gz")
+        .target("local/node-v23.9.0.tar.gz")
+        .integrity_hash(
+          IntegrityHash::builder()
+            .expect("164ec8fe82aac21f74efc0d5890d9f6c0e0ba22ca285d400c0266913fb4ff8a0".to_string())
+            .algorithm(Algorithm::SHA256)
+            .build(),
+        )
+        .build(),
+    ];
     downloader.download(downloads).await.unwrap();
   }
 }
