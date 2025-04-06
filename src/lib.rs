@@ -254,7 +254,7 @@ mod tests {
       DownloadItem::builder()
         .url("https://nodejs.org/dist/v23.9.0/node-v23.9.0.tar.gz")
         .target("local/node-v23.9.0.tar.gz")
-        .integrity_hash(
+        .integrity(
           IntegrityHash::builder()
             .expect("164ec8fe82aac21f74efc0d5890d9f6c0e0ba22ca285d400c0266913fb4ff8a0".to_string())
             .algorithm(Algorithm::SHA256)

@@ -90,22 +90,19 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, T
     // 确保所有数据都写入
     writer.flush().await?;
 
-    self.progress_bar.finish_with_message(format!(
-      "Downloaded {} to {}",
-      self.item.url.as_str(),
-      self.tmp_file.as_ref().display()
-    ));
-
-    if let Some(integrity_hash) = &self.item.integrity_hash {
+    if let Some(integrity) = &self.item.integrity {
+      eprintln!("integrity: {:?}", integrity);
       let actual = Hashery::builder()
-        .algorithm(integrity_hash.algorithm)
+        .algorithm(integrity.algorithm)
         .build()
         .digest(temp_file)
         .await?;
+      eprintln!("actual: {:?}", actual);
 
-      let expect = integrity_hash.expect.clone();
+      let expect = integrity.expect.clone();
 
       if actual != expect {
+        tokio::fs::remove_file(temp_file).await?;
         return Err(ProgressDownloadError::IntegrityHash { expect, actual });
       }
     }

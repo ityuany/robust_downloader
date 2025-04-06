@@ -13,5 +13,5 @@ pub struct DownloadItem<U, P> {
   pub target: P,
 
   #[builder(default = None, setter(strip_option))]
-  pub integrity_hash: Option<IntegrityHash>,
+  pub integrity: Option<IntegrityHash>,
 }
