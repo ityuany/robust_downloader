@@ -24,7 +24,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-robust_downloader = "0.1.0"
+robust_downloader = "0.0.5"
 ```
 
 ### Example
