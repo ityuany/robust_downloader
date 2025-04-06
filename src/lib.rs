@@ -27,7 +27,7 @@ pub use item::*;
 /// # Example
 ///
 /// ```rust
-/// use robust_downloader::RobustDownloader;
+/// use robust_downloader::{RobustDownloader, DownloadItem};
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,8 +36,14 @@ pub use item::*;
 ///         .build();
 ///
 ///     let downloads = vec![
-///         ("https://example.com/file1.zip", "file1.zip"),
-///         ("https://example.com/file2.zip", "file2.zip"),
+///         DownloadItem::builder()
+///             .url("https://example.com/file1.zip")
+///             .target("local/file1.zip")
+///             .build(),
+///         DownloadItem::builder()
+///             .url("https://example.com/file2.zip")
+///             .target("local/file2.zip")
+///             .build(),
 ///     ];
 ///
 ///     downloader.download(downloads).await?;
@@ -107,12 +113,18 @@ impl RobustDownloader {
   /// # Example
   ///
   /// ```rust
-  /// # use robust_downloader::RobustDownloader;
-  /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+  /// use robust_downloader::{RobustDownloader, DownloadItem};
+  /// async fn example() -> Result<(), Box<dyn std::error::Error>> {
   /// let downloader = RobustDownloader::builder().build();
   /// let files = vec![
-  ///     ("https://example.com/file1.txt", "local/file1.txt"),
-  ///     ("https://example.com/file2.txt", "local/file2.txt"),
+  ///     DownloadItem::builder()
+  ///         .url("https://example.com/file1.txt")
+  ///         .target("local/file1.txt")
+  ///         .build(),
+  ///     DownloadItem::builder()
+  ///         .url("https://example.com/file2.txt")
+  ///         .target("local/file2.txt")
+  ///         .build(),
   /// ];
   /// downloader.download(files).await?;
   /// # Ok(())
