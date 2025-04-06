@@ -12,9 +12,10 @@
 
 - 🚀 **并发下载**：支持同时下载多个文件，可配置并发限制
 - 🔄 **自动重试**：内置指数退避重试机制，自动处理下载失败
-- 📊 **进度跟踪**：美观的进度条，实时显示下载统计信息
+- 📊 **进度跟踪**：美观的进度条，实时显示下载状态和统计信息
 - ⚡ **性能优化**：高效的内存使用，可配置缓冲区大小
 - 🛡️ **安全文件处理**：使用临时文件确保原子操作
+- 🔒 **完整性验证**：支持多种哈希算法的文件完整性校验
 - ⚙️ **高度可配置**：可自定义超时、并发数和重试行为
 
 ## 快速开始
@@ -29,7 +30,8 @@ robust_downloader = "0.1.0"
 ### 示例
 
 ```rust
-use robust_downloader::RobustDownloader;
+use robust_downloader::{RobustDownloader, Integrity, HashAlgorithm};
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,10 +41,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect_timeout(Duration::from_secs(5))  // 设置连接超时
         .build();
 
-    // 定义下载任务
+    // 定义下载任务，支持完整性验证
     let downloads = vec![
-        ("https://example.com/file1.zip", "file1.zip"),
-        ("https://example.com/file2.zip", "file2.zip"),
+        (
+            "https://example.com/file1.zip",
+            "file1.zip",
+            Some(Integrity {
+                algorithm: HashAlgorithm::SHA256,
+                expect: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into(),
+            })
+        ),
+        ("https://example.com/file2.zip", "file2.zip", None),
     ];
 
     // 开始下载
@@ -59,6 +68,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `connect_timeout` | 2秒 | 每个请求的连接超时时间 |
 | `timeout` | 60秒 | 每个下载的总超时时间 |
 | `flush_threshold` | 512KB | 写入磁盘的缓冲区大小 |
+
+## 进度跟踪
+
+库提供了详细的进度跟踪功能：
+- 下载进度百分比
+- 当前下载文件名
+- 不同阶段的状态信息（下载中、验证完整性、移动文件）
+- 实时下载速度
 
 ## 安装
 

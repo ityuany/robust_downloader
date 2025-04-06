@@ -12,9 +12,10 @@ A robust, concurrent file downloader library for Rust with progress tracking and
 
 - 🚀 **Concurrent Downloads**: Download multiple files simultaneously with configurable concurrency limits
 - 🔄 **Automatic Retries**: Built-in exponential backoff retry mechanism for failed downloads
-- 📊 **Progress Tracking**: Beautiful progress bars with real-time download statistics
+- 📊 **Progress Tracking**: Beautiful progress bars with real-time download statistics and status messages
 - ⚡ **Performance Optimized**: Efficient memory usage with configurable buffer sizes
 - 🛡️ **Safe File Handling**: Uses temporary files for atomic operations
+- 🔒 **Integrity Verification**: Support for file integrity checking with various hash algorithms
 - ⚙️ **Highly Configurable**: Customize timeouts, concurrency, and retry behavior
 
 ## Quick Start
@@ -29,7 +30,8 @@ robust_downloader = "0.1.0"
 ### Example
 
 ```rust
-use robust_downloader::RobustDownloader;
+use robust_downloader::{RobustDownloader, Integrity, HashAlgorithm};
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,10 +41,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect_timeout(Duration::from_secs(5))  // Set connection timeout
         .build();
 
-    // Define download tasks
+    // Define download tasks with integrity verification
     let downloads = vec![
-        ("https://example.com/file1.zip", "file1.zip"),
-        ("https://example.com/file2.zip", "file2.zip"),
+        (
+            "https://example.com/file1.zip",
+            "file1.zip",
+            Some(Integrity {
+                algorithm: HashAlgorithm::SHA256,
+                expect: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into(),
+            })
+        ),
+        ("https://example.com/file2.zip", "file2.zip", None),
     ];
 
     // Start downloading
@@ -59,6 +68,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `connect_timeout` | 2s | Connection timeout for each request |
 | `timeout` | 60s | Overall timeout for each download |
 | `flush_threshold` | 512KB | Buffer size for writing to disk |
+
+## Progress Tracking
+
+The library provides detailed progress tracking with:
+- Download progress percentage
+- Current file being downloaded
+- Status messages for different stages (downloading, verifying integrity, moving file)
+- Real-time download speed
 
 ## Installation
 
