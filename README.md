@@ -24,13 +24,23 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-robust_downloader = "0.0.5"
+# Default features (includes SHA2 and SHA3)
+robust_downloader = "0.0.6"
+
+# Or with specific hash algorithms
+robust_downloader = { version = "0.0.6", features = ["sha2", "blake3"] }
+
+# Or with modern/secure algorithms
+robust_downloader = { version = "0.0.6", features = ["modern"] }
+
+# Or with all hash algorithms
+robust_downloader = { version = "0.0.6", features = ["all"] }
 ```
 
 ### Example
 
 ```rust
-use robust_downloader::{RobustDownloader, Integrity, HashAlgorithm};
+use robust_downloader::{RobustDownloader, Integrity, DownloadItem};
 use std::time::Duration;
 
 #[tokio::main]
@@ -43,15 +53,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Define download tasks with integrity verification
     let downloads = vec![
-        (
-            "https://example.com/file1.zip",
-            "file1.zip",
-            Some(Integrity {
-                algorithm: HashAlgorithm::SHA256,
-                expect: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into(),
-            })
-        ),
-        ("https://example.com/file2.zip", "file2.zip", None),
+        DownloadItem::builder()
+            .url("https://example.com/file1.zip")
+            .target("file1.zip")
+            .integrity(Integrity::SHA256("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into()))
+            .build(),
+        DownloadItem::builder()
+            .url("https://example.com/file2.zip")
+            .target("file2.zip")
+            .integrity(Integrity::Blake3("202020202020202020202020".into()))
+            .build(),
     ];
 
     // Start downloading
@@ -68,6 +79,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `connect_timeout` | 2s | Connection timeout for each request |
 | `timeout` | 60s | Overall timeout for each download |
 | `flush_threshold` | 512KB | Buffer size for writing to disk |
+
+## Hash Algorithm Features
+
+Available hash algorithm features:
+- `md5` - Enable MD5 hash support
+- `sha1` - Enable SHA1 hash support
+- `sha2` - Enable SHA256 and SHA512 support (included in default)
+- `sha3` - Enable SHA3-256 hash support (included in default)
+- `blake2` - Enable BLAKE2b and BLAKE2s support
+- `blake3` - Enable BLAKE3 hash support
+
+Feature combinations:
+- `modern` - Enable modern/secure algorithms (sha2, sha3, blake2, blake3)
+- `legacy` - Enable legacy algorithms (md5, sha1)
+- `all` - Enable all hash algorithms
 
 ## Progress Tracking
 

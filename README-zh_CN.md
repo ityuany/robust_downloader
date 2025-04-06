@@ -24,13 +24,23 @@
 
 ```toml
 [dependencies]
-robust_downloader = "0.0.5"
+# 默认功能（包含 SHA2 和 SHA3）
+robust_downloader = "0.0.6"
+
+# 或者指定特定的哈希算法
+robust_downloader = { version = "0.0.6", features = ["sha2", "blake3"] }
+
+# 或者使用现代/安全的算法
+robust_downloader = { version = "0.0.6", features = ["modern"] }
+
+# 或者启用所有哈希算法
+robust_downloader = { version = "0.0.6", features = ["all"] }
 ```
 
 ### 示例
 
 ```rust
-use robust_downloader::{RobustDownloader, Integrity, HashAlgorithm};
+use robust_downloader::{RobustDownloader, Integrity, DownloadItem};
 use std::time::Duration;
 
 #[tokio::main]
@@ -43,15 +53,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 定义下载任务，支持完整性验证
     let downloads = vec![
-        (
-            "https://example.com/file1.zip",
-            "file1.zip",
-            Some(Integrity {
-                algorithm: HashAlgorithm::SHA256,
-                expect: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into(),
-            })
-        ),
-        ("https://example.com/file2.zip", "file2.zip", None),
+        DownloadItem::builder()
+            .url("https://example.com/file1.zip")
+            .target("file1.zip")
+            .integrity(Integrity::SHA256("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into()))
+            .build(),
+        DownloadItem::builder()
+            .url("https://example.com/file2.zip")
+            .target("file2.zip")
+            .integrity(Integrity::Blake3("202020202020202020202020".into()))
+            .build(),
     ];
 
     // 开始下载
@@ -68,6 +79,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `connect_timeout` | 2秒 | 每个请求的连接超时时间 |
 | `timeout` | 60秒 | 每个下载的总超时时间 |
 | `flush_threshold` | 512KB | 写入磁盘的缓冲区大小 |
+
+## 哈希算法特性
+
+可用的哈希算法特性：
+- `md5` - 启用 MD5 哈希支持
+- `sha1` - 启用 SHA1 哈希支持
+- `sha2` - 启用 SHA256 和 SHA512 支持（默认包含）
+- `sha3` - 启用 SHA3-256 哈希支持（默认包含）
+- `blake2` - 启用 BLAKE2b 和 BLAKE2s 支持
+- `blake3` - 启用 BLAKE3 哈希支持
+
+特性组合：
+- `modern` - 启用现代/安全算法（sha2、sha3、blake2、blake3）
+- `legacy` - 启用传统算法（md5、sha1）
+- `all` - 启用所有哈希算法
 
 ## 进度跟踪
 
