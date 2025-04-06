@@ -91,15 +91,13 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, T
     writer.flush().await?;
 
     if let Some(integrity) = &self.item.integrity {
-      eprintln!("integrity: {:?}", integrity);
       let actual = Hashery::builder()
-        .algorithm(integrity.algorithm)
+        .algorithm(integrity.algorithm())
         .build()
         .digest(temp_file)
         .await?;
-      eprintln!("actual: {:?}", actual);
 
-      let expect = integrity.expect.clone();
+      let expect = integrity.value().to_string();
 
       if actual != expect {
         tokio::fs::remove_file(temp_file).await?;

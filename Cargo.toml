@@ -9,11 +9,28 @@ license     = "MIT"
 name        = "robust_downloader"
 version     = "0.0.5"
 
+[features]
+default = ["sha2", "sha3"]
+
+# 基础哈希算法
+blake2 = ["hashery/blake2"]
+blake3 = ["hashery/blake3"]
+md5    = ["hashery/md5"]
+sha1   = ["hashery/sha1"]
+sha2   = ["hashery/sha2"]
+sha3   = ["hashery/sha3"]
+
+# 算法组合
+all    = ["md5", "sha1", "sha2", "sha3", "blake2", "blake3"] # 启用所有算法
+legacy = ["md5", "sha1"]                                     # 传统算法
+modern = ["sha2", "sha3", "blake2", "blake3"]                # 现代/安全的算法
+
+
 [dependencies]
 backoff       = { version = "0.4.0", features = ["tokio", "futures"] }
 futures       = "0.3.31"
 futures-util  = "0.3.31"
-hashery       = "0.0.1"
+hashery       = { version = "0.0.1", default-features = false, optional = true }
 indicatif     = "0.17.11"
 reqwest       = { version = "0.12.15", features = ["stream"] }
 thiserror     = "2.0.12"
