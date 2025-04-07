@@ -7,7 +7,7 @@ include     = ["src/**/*.rs", "Cargo.toml", "LICENSE", "README.md"]
 keywords    = ["downloader", "concurrent", "progress", "retry"]
 license     = "MIT"
 name        = "robust_downloader"
-version     = "0.0.6"
+version     = "0.0.7"
 
 [features]
 default = ["sha2", "sha3", "native-tls"]
