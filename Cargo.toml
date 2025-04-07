@@ -10,7 +10,13 @@ name        = "robust_downloader"
 version     = "0.0.6"
 
 [features]
-default = ["sha2", "sha3"]
+default = ["sha2", "sha3", "native-tls"]
+
+
+# TLS 后端选项
+native-tls = ["reqwest/native-tls"]  # 使用系统原生 TLS
+openssl    = ["reqwest/default-tls"] # 使用 OpenSSL
+rustls     = ["reqwest/rustls-tls"]  # 使用纯 Rust 实现的 TLS
 
 # 基础哈希算法
 blake2 = ["hashery/blake2"]
@@ -32,7 +38,7 @@ futures       = "0.3.31"
 futures-util  = "0.3.31"
 hashery       = { version = "0.0.1", default-features = false, optional = true }
 indicatif     = "0.17.11"
-reqwest       = { version = "0.12.15", features = ["stream"] }
+reqwest       = { version = "0.12.15", features = ["stream"], default-features = false }
 thiserror     = "2.0.12"
-tokio         = { version = "1.44.1", features = ["io-util", "fs", "macros", "rt-multi-thread"] }
+tokio         = { version = "1.44.2", features = ["io-util", "fs", "macros", "rt-multi-thread"] }
 typed-builder = "0.21.0"
