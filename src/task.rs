@@ -1,4 +1,4 @@
-use std::{path::Path, time::Duration};
+use std::{io::ErrorKind, path::Path, time::Duration};
 
 use futures::StreamExt;
 use hashery::Hashery;
@@ -90,6 +90,8 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, T
     // 确保所有数据都写入
     writer.flush().await?;
 
+    writer.into_inner().sync_all().await?;
+
     if let Some(integrity) = &self.item.integrity {
       let actual = Hashery::builder()
         .algorithm(integrity.algorithm())
@@ -105,12 +107,22 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, T
       }
     }
 
+    let target = self.item.target.as_ref();
+
     // 确保目标文件的父目录存在
-    if let Some(parent) = self.item.target.as_ref().parent() {
+    if let Some(parent) = target.parent() {
       tokio::fs::create_dir_all(parent).await?;
     }
 
-    tokio::fs::rename(&self.tmp_file, self.item.target.as_ref()).await?;
+    if let Err(e) = tokio::fs::rename(&self.tmp_file, target).await {
+      if e.kind() == ErrorKind::CrossesDevices {
+        // 跨设备重命名失败，尝试复制
+        tokio::fs::copy(&self.tmp_file, target).await?;
+        tokio::fs::remove_file(&self.tmp_file).await?;
+      } else {
+        return Err(e.into());
+      }
+    }
 
     Ok(())
   }
