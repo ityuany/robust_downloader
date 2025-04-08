@@ -17,7 +17,7 @@ pub enum ProgressDownloadError {
   #[error("Path error: {path}")]
   Path { path: String },
 
-  #[error("Integrity hash error: {expect} != {actual}")]
+  #[error("Integrity hash mismatch - expected: {expect}, actual: {actual}")]
   IntegrityHash { expect: String, actual: String },
 }
 
