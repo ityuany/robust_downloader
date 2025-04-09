@@ -92,6 +92,8 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, T
 
     writer.into_inner().sync_all().await?;
 
+    let target = self.item.target.as_ref();
+
     if let Some(integrity) = &self.item.integrity {
       let actual = Hashery::builder()
         .algorithm(integrity.algorithm())
@@ -103,18 +105,21 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, T
 
       if actual != expect {
         tokio::fs::remove_file(temp_file).await?;
-        return Err(ProgressDownloadError::IntegrityHash { expect, actual });
+        return Err(ProgressDownloadError::IntegrityHash {
+          expect,
+          actual,
+          actual_file: temp_file.to_path_buf(),
+          target_file: target.to_path_buf(),
+        });
       }
     }
-
-    let target = self.item.target.as_ref();
 
     // 确保目标文件的父目录存在
     if let Some(parent) = target.parent() {
       tokio::fs::create_dir_all(parent).await?;
     }
 
-    if let Err(e) = tokio::fs::rename(&self.tmp_file, target).await {
+    if let Err(e) = tokio::fs::rename(&self.tmp_file, &target).await {
       if e.kind() == ErrorKind::CrossesDevices {
         // 跨设备重命名失败，尝试复制
         tokio::fs::copy(&self.tmp_file, target).await?;

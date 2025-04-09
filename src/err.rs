@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -17,8 +19,15 @@ pub enum ProgressDownloadError {
   #[error("Path error: {path}")]
   Path { path: String },
 
-  #[error("Integrity hash mismatch - expected: {expect}, actual: {actual}")]
-  IntegrityHash { expect: String, actual: String },
+  #[error(
+    "Integrity hash mismatch - expected: {expect}, actual: {actual} , actual_file:{actual_file} , target_file: {target_file}"
+  )]
+  IntegrityHash {
+    expect: String,
+    actual: String,
+    actual_file: PathBuf,
+    target_file: PathBuf,
+  },
 }
 
 impl ProgressDownloadError {
