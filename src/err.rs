@@ -1,5 +1,5 @@
+use log::debug;
 use std::path::PathBuf;
-
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -67,21 +67,38 @@ impl ProgressDownloadError {
         // 3. 系统资源相关
         std::io::ErrorKind::OutOfMemory |    // 内存不足（可能是临时的）
         std::io::ErrorKind::Other            // 其他未知错误（保守重试）
-              => backoff::Error::transient(self),
+              => {
+                debug!("transient error: {:?}", self);
+                return backoff::Error::transient(self);
+              },
         // 其他都是永久性错误
         _ => backoff::Error::permanent(self),
       },
       Self::Reqwest(error) => {
         if self.is_retry_error(error) {
+          debug!("transient error: {:?}", self);
           backoff::Error::transient(self)
         } else {
+          debug!("permanent error: {:?}", self);
           backoff::Error::permanent(self)
         }
       }
-      Self::Timeout(_) => backoff::Error::transient(self),
-      Self::Semaphore(_) => backoff::Error::transient(self),
-      Self::Path { .. } => backoff::Error::permanent(self),
-      Self::IntegrityHash { .. } => backoff::Error::permanent(self),
+      Self::Timeout(_) => {
+        debug!("transient error: {:?}", self);
+        backoff::Error::transient(self)
+      }
+      Self::Semaphore(_) => {
+        debug!("transient error: {:?}", self);
+        backoff::Error::transient(self)
+      }
+      Self::Path { .. } => {
+        debug!("permanent error: {:?}", self);
+        backoff::Error::permanent(self)
+      }
+      Self::IntegrityHash { .. } => {
+        debug!("permanent error: {:?}", self);
+        backoff::Error::permanent(self)
+      }
     }
   }
 }

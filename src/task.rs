@@ -10,7 +10,7 @@ use typed_builder::TypedBuilder;
 use crate::{err::ProgressDownloadError, item::DownloadItem, tracker::DownloadTracker};
 
 #[derive(Debug, TypedBuilder)]
-pub struct DownloadTasker<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> {
+pub struct DownloadTaskRunner<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> {
   #[builder]
   client: reqwest::Client,
   #[builder]
@@ -27,7 +27,7 @@ pub struct DownloadTasker<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> {
   flush_threshold: usize,
 }
 
-impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTasker<U, P, TP> {
+impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTaskRunner<U, P, TP> {
   async fn send(&self, downloaded_size: u64) -> Result<reqwest::Response, ProgressDownloadError> {
     let request = self
       .client

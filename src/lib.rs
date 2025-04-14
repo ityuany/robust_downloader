@@ -4,7 +4,7 @@ use backoff::ExponentialBackoff;
 use err::ProgressDownloadError;
 use indicatif::{ProgressBar, ProgressDrawTarget};
 use reqwest::IntoUrl;
-use task::DownloadTasker;
+use task::DownloadTaskRunner;
 use tokio::sync::Semaphore;
 use typed_builder::TypedBuilder;
 
@@ -227,7 +227,7 @@ impl RobustDownloader {
     let progress_bar = self.prepare_progress_bar();
     let progress_bar = mp.add(progress_bar);
 
-    let tasker = DownloadTasker::builder()
+    let task_runner = DownloadTaskRunner::builder()
       .client(client.clone())
       .progress_bar(progress_bar)
       .item(item)
@@ -237,7 +237,7 @@ impl RobustDownloader {
       .build();
 
     backoff::future::retry(self.backoff(), || async {
-      tasker
+      task_runner
         .download()
         .await
         .map_err(ProgressDownloadError::into_backoff_err)

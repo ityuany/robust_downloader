@@ -38,6 +38,7 @@ futures       = "0.3.31"
 futures-util  = "0.3.31"
 hashery       = { version = "0.0.1", default-features = false, optional = true }
 indicatif     = "0.17.11"
+log           = "0.4.27"
 reqwest       = { version = "0.12.15", features = ["stream"], default-features = false }
 thiserror     = "2.0.12"
 tokio         = { version = "1.44.2", features = ["io-util", "fs", "macros", "rt-multi-thread"] }
