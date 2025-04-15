@@ -62,6 +62,9 @@ pub struct RobustDownloader {
   #[builder(default = Duration::from_secs(60))]
   timeout: Duration,
 
+  #[builder(default = Duration::from_millis(500))]
+  read_chunk_timeout: Duration,
+
   /// Buffer size threshold for flushing downloaded data to disk.
   /// Defaults to 512KB.
   #[builder(default = 512 * 1024)]
@@ -232,6 +235,7 @@ impl RobustDownloader {
       .progress_bar(progress_bar)
       .item(item)
       .tmp_file(temp_file)
+      .read_chunk_timeout(self.read_chunk_timeout)
       .timeout(self.timeout)
       .flush_threshold(self.flush_threshold)
       .build();

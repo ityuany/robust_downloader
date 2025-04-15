@@ -3,6 +3,7 @@ use std::{io::ErrorKind, path::Path, time::Duration};
 use futures::StreamExt;
 use hashery::Hashery;
 use indicatif::ProgressBar;
+use log::debug;
 use reqwest::IntoUrl;
 use tokio::io::AsyncWriteExt;
 use typed_builder::TypedBuilder;
@@ -23,6 +24,9 @@ pub struct DownloadTaskRunner<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path
   item: DownloadItem<U, TP>,
   #[builder]
   timeout: Duration,
+
+  #[builder]
+  read_chunk_timeout: Duration,
   #[builder]
   flush_threshold: usize,
 }
@@ -73,7 +77,7 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTaskRunner<U, 
 
     tokio::pin!(stream);
 
-    while let Some(chunk) = tokio::time::timeout(Duration::from_millis(500), stream.next())
+    while let Some(chunk) = tokio::time::timeout(self.read_chunk_timeout, stream.next())
       .await?
       .transpose()?
     {
@@ -128,6 +132,8 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTaskRunner<U, 
         return Err(e.into());
       }
     }
+
+    debug!("😆 Download Success: {}", target.display());
 
     Ok(())
   }
