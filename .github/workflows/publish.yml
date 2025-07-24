@@ -39,7 +39,7 @@ jobs:
         id: auth
 
       - name: Publish to crates.io
-        run: cargo publish
+        run: cargo publish --token ${CRATES_TOKEN}
         env:
           CRATES_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
 
