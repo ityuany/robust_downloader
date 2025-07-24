@@ -7,6 +7,7 @@ include     = ["src/**/*.rs", "Cargo.toml", "LICENSE", "README.md"]
 keywords    = ["downloader", "concurrent", "progress", "retry"]
 license     = "MIT"
 name        = "robust_downloader"
+repository  = "https://github.com/ityuany/robust_downloader"
 version     = "0.0.14"
 
 [features]
