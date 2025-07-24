@@ -9,10 +9,20 @@ use tokio::sync::Semaphore;
 use typed_builder::TypedBuilder;
 
 mod err;
+mod integrity;
 mod item;
 mod task;
 mod tracker;
 
+#[cfg(any(
+  feature = "md5",
+  feature = "sha1",
+  feature = "sha2",
+  feature = "sha3",
+  feature = "blake2",
+  feature = "blake3"
+))]
+pub use integrity::*;
 pub use item::*;
 
 /// A robust, concurrent file downloader with retry capabilities and progress tracking.
@@ -254,8 +264,6 @@ impl RobustDownloader {
 
 #[cfg(test)]
 mod tests {
-
-  use crate::item::Integrity;
 
   use super::*;
 

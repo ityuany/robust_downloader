@@ -12,6 +12,8 @@ version     = "0.0.12"
 [features]
 default = ["sha2", "sha3", "native-tls"]
 
+# 最小化配置
+no-default-feature = [] # 不启用任何可选特性，最小化构建
 
 # TLS 后端选项
 native-tls = ["reqwest/native-tls"]  # 使用系统原生 TLS

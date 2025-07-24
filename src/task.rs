@@ -1,6 +1,14 @@
 use std::{io::ErrorKind, path::Path, time::Duration};
 
 use futures::StreamExt;
+#[cfg(any(
+  feature = "md5",
+  feature = "sha1",
+  feature = "sha2",
+  feature = "sha3",
+  feature = "blake2",
+  feature = "blake3"
+))]
 use hashery::Hashery;
 use indicatif::ProgressBar;
 use log::debug;
@@ -98,6 +106,14 @@ impl<U: IntoUrl + Clone, P: AsRef<Path>, TP: AsRef<Path>> DownloadTaskRunner<U, 
 
     let target = self.item.target.as_ref();
 
+    #[cfg(any(
+      feature = "md5",
+      feature = "sha1",
+      feature = "sha2",
+      feature = "sha3",
+      feature = "blake2",
+      feature = "blake3"
+    ))]
     if let Some(integrity) = &self.item.integrity {
       let actual = Hashery::builder()
         .algorithm(integrity.algorithm())
