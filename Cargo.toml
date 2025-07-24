@@ -8,7 +8,7 @@ keywords    = ["downloader", "concurrent", "progress", "retry"]
 license     = "MIT"
 name        = "robust_downloader"
 repository  = "https://github.com/ityuany/robust_downloader"
-version     = "0.0.14"
+version     = "0.0.15"
 
 [features]
 default = ["sha2", "sha3", "native-tls"]
