@@ -6,10 +6,12 @@
   "dependi.decoration.compatible.template":"🟢 ${version}",
   "dependi.decoration.incompatible.template": "🔴 ${version}",
   "cSpell.words": [
+    "dtolnay",
     "hashery",
     "indicatif",
     "reqwest",
     "rustls",
+    "softprops",
     "thiserror"
   ],
 }
